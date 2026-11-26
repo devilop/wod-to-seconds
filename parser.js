@@ -26,6 +26,7 @@ export function parseWod(input) {
     if(type){
       if(blocks.length===1&&block?.type==='FOR TIME'&&!block.lines.length&&/^for\s+time\s*:?$/i.test(block.header)&&/^(E[23]MOM|EMOM)$/i.test(type[1])){blocks.pop();warnings.push('Intestazione For Time: applicato il protocollo EMOM indicato.');}
       block={type:type[1].toUpperCase().replace(/\s+/g,' '),header:line,lines:[]};blocks.push(block);}
+    else if(!block&&/^(?:time\s*cap|cap)\b/i.test(line)){block={type:'FOR TIME',header:'FOR TIME',lines:[line]};blocks.push(block);warnings.push('Time cap senza protocollo: interpretato come FOR TIME, con un unico timer.');}
     else if(restPattern.test(line)&&!block?.type.startsWith('INTERVAL')&&!(block&&/^(E[23]MOM|EMOM)$/.test(block.type)&&!seconds(line))){blocks.push({type:'REST',header:line,lines:[]});block=null;}
     else if(block) block.lines.push(line);
     else if(!blocks.length) warnings.push(`Titolo o testo introduttivo: ${line}`);
