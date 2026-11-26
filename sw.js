@@ -1,5 +1,5 @@
-const CACHE='wod-seconds-v5';
-const ASSETS=['./','./index.html','./style.css?v=4','./app.js?v=5','./parser.js?v=5','./template.seconds','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
+const CACHE='wod-seconds-v7';
+const ASSETS=['./','./index.html','./style.css?v=6','./app.js?v=7','./parser.js?v=7','./template.seconds','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('wod-seconds-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{if(event.request.method!=='GET'||new URL(event.request.url).origin!==self.location.origin)return;event.respondWith(fetch(event.request).catch(()=>caches.match(event.request).then(r=>r||Response.error())));});

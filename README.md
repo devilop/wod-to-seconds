@@ -65,3 +65,11 @@ Modificare il nome CACHE in sw.js a ogni nuova versione per aggiornare gli asset
 ## Dipendenze
 
 Tesseract.js è software open source Apache-2.0 (https://github.com/naptha/tesseract.js/blob/master/LICENSE.md), caricato dal CDN senza incorporarne il codice nel repository. Template derivato dal materiale fornito dal proprietario del progetto. Nessun font, immagine stock o servizio AI esterno.
+
+
+## Aggiornamento: archivio e interpretazione
+Salvataggi volontari in localStorage, senza foto. I dati restano nel browser e si perdono cancellando i dati del sito. Ogni salvataggio ha un QR generato localmente con qrcode-generator 1.4.4 (MIT, caricato da jsDelivr). Il QR contiene il WOD compresso nel frammento del link: chi lo riceve può importarlo e salvarlo. Limite di capacità del QR; allenamenti molto grandi possono non essere condivisibili in un singolo QR. Generazione QR iniziale richiede rete. Testato il link di importazione, non una fotocamera fisica.
+
+Supportati gli ordinali e range di stazioni (5°-6° REST), progressioni di ripetizioni per un esercizio EMOM/E2MOM/E3MOM e formulazioni inglesi AMRAP/Every N minutes. START 60% viene conservato al primo intervallo; nessuna progressione dei carichi viene inventata. Intestazione generica For Time prima di EMOM tollerata solo se priva di durata/esercizi.
+
+Test da fonti ufficiali: Cindy (https://www.crossfit.com/benchmark/cindy), Fran (https://www.crossfit.com/benchmark/fran), Helen (https://www.crossfit.com/benchmark/helen), Tabata This (https://www.crossfit.com/faq). Tabata This è testato riscrivendo il protocollo in blocchi espliciti; il nome o una descrizione non supportata non bastano a riconoscerlo automaticamente. Fran/Helen senza cap producono richiesta di durata, non tempi stimati. Non è un interprete universale né AI. Formati a esaurimento e Tabata complessi non esplicitati richiedono chiarimenti.

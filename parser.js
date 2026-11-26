@@ -14,8 +14,11 @@ const kindPattern = /\b(E[23]MOM|EMOM|AMRAP|TABATA|FOR\s+TIME|INTERVAL(?:\s+TRAI
 const restPattern = /^(?:rest|recupero|riposo|pausa)\b/i;
 function roundsOf(s){const m=s.match(/(\d+)\s*(?:rounds?|giri|serie|sets?)\b/i)||s.match(/(?:rounds?|giri|serie|sets?)\s*[:x]?\s*(\d+)/i);return m?Number(m[1]):null;}
 export function parseWod(input) {
+  if(/death by|until failure|as long as possible|fino (?:al |a )?cedimento/i.test(input))throw Error('Protocollo a esaurimento: indica il numero massimo di intervalli e le ripetizioni per ciascuno.');
+  if(/tabata (?:this|something else)/i.test(input))throw Error('Tabata con più esercizi: indica un blocco TABATA per ciascun esercizio e gli eventuali recuperi tra blocchi.');
   if(!input.trim()) throw Error('Scrivi o carica un allenamento.');
   if(input.length>20000) throw Error('Testo troppo lungo: massimo 20.000 caratteri.');
+  input=input.replace(/(?:complete\s+)?as many (?:rounds?(?: and reps?)?|reps?) as possible in/gi,'AMRAP').replace(/(?:più|piu) (?:giri|round|ripetizioni) possibili in/gi,'AMRAP').replace(/every (?:1 )?minute(?: on the minute)? for/gi,'EMOM').replace(/every ([23]) minutes? for/gi,(_,n)=>`E${n}MOM`).replace(/ogni ([23]) minuti per/gi,(_,n)=>`E${n}MOM`);
   const lines=input.replace(/\r/g,'').replace(/[’‘]/g,"'").replace(/[“”]/g,'"').replace(/;|\s+poi\s+|\s+then\s+/gi,'\n').split('\n').map(s=>s.replace(/^\s*[-•]\s*/,'').trim()).filter(Boolean);
   const blocks=[]; let block=null; const warnings=[];
   for(const line of lines){
@@ -51,8 +54,24 @@ export function parseWod(input) {
     if(!exercises.length) throw Error(`${b.type}: aggiungi gli esercizi su righe separate oppure dopo “ — ”.`);
     if(/^(E[23]MOM|EMOM)$/.test(b.type)){
       const slot=b.type==='EMOM'?60:b.type==='E2MOM'?120:180;
-      const numbered=exercises.some(s=>/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[°º:.)-]/i.test(s));
-      exercises=exercises.map(s=>s.replace(/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[°º:.)-]\s*/i,''));
+      const progression=exercises.find(s=>/^\d+(?:\s*[-–—]\s*\d+)+$/.test(s));
+      if(progression){
+        const reps=progression.split(/\s*[-–—]\s*/).map(Number);
+        const instructions=exercises.filter(s=>/^(?:START|PARTENZA)\b/i.test(s));
+        const movements=exercises.filter(s=>s!==progression&&!instructions.includes(s));
+        if(movements.length!==1||!total||total/slot!==reps.length)throw Error('Progressione: serve un esercizio e una ripetizione per ogni finestra temporale.');
+        reps.forEach((rep,i)=>add(`${rep} ${movements[0]}${i===0&&instructions.length?' · '+instructions.join(' · '):''}`,slot,false,i+1,bi));
+        const key=exerciseKey(movements[0]);const color=intervals[intervals.length-reps.length].color;
+        intervals.slice(-reps.length).forEach(i=>{i.exercise_key=key;i.color=color;});
+        summaries.push({type:b.type,rounds:reps.length});return;
+      }
+      let numbered=false;
+      exercises=exercises.flatMap(s=>{
+        const range=s.match(/^(\d+)\s*[°º]\s*[-–—]\s*(\d+)\s*[°º]\s*(.+)$/);
+        if(range){const first=+range[1],last=+range[2];if(last<first||last-first>100)throw Error('Intervallo di stazioni non valido.');numbered=true;return Array(last-first+1).fill(range[3]);}
+        const station=s.match(/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[°º:.)-]\s*(.+)$/i);
+        if(station){numbered=true;return [station[1]];}return [s];
+      });
       let count=total?total/slot:rounds?rounds*exercises.length:null;
       if(!count||!Number.isInteger(count))throw Error(`${b.type}: indica una durata multipla di ${slot} s oppure il numero di round.`);
       if(rounds&&total&&rounds*exercises.length!==count)throw Error(`${b.type}: durata, round e numero di stazioni non coincidono.`);
@@ -62,7 +81,8 @@ export function parseWod(input) {
       warnings.push(`${b.type}: ${numbered?'stazioni numerate':'ogni riga è una stazione'}; usa “+” per più esercizi nella stessa finestra. Il recupero residuo resta nella finestra.`);
     }else if(b.type==='AMRAP'||b.type==='FOR TIME'){
       if(!total)throw Error(`${b.type}: ${b.type==='FOR TIME'?'serve un time cap':'specifica la durata'} (es. 12 min).`);
-      add(`${b.type}${rounds?' · '+rounds+' round':''} · ${exercises.join(' + ')}`,total,false,1,bi);
+      const scheme=b.header.match(/\d+(?:[-–—]\d+)+/);
+      add(`${b.type}${scheme?' · '+scheme[0]+' reps':''}${rounds?' · '+rounds+' round':''} · ${exercises.join(' + ')}`,total,false,1,bi);
       if(b.type==='AMRAP')rounds=null;
     }else if(b.type==='TABATA'){
       const custom=info.match(/(\d+)\s*(?:s|sec)?\s*\/\s*(\d+)\s*(?:s|sec)?/i);
