@@ -1,4 +1,4 @@
-import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js';
+import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=5';
 const $=id=>document.getElementById(id);let model={intervals:[],blocks:[],warnings:[]},template,installPrompt,ocrBusy=false;
 const examples={emom:'EMOM 12 min\n10 burpees\n12 kettlebell swing 24 kg\n14 air squat',mixed:'E2MOM 12 min\n8 front squat 40 kg + 10 box jump\n12 calorie row\n\nRecupero 90 s\n\nAMRAP 8 min\n5 pull-up\n10 push-up\n15 air squat\n\nFOR TIME — 3 round\nTime cap 6 min\n10 burpees\n20 sit-up',tabata:'TABATA 8 round 20/10\nAir squat\nPush-up'};
 function message(text,error=false){$('status').textContent=text;$('status').className=error?'error':'';}

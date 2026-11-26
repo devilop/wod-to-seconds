@@ -20,7 +20,9 @@ export function parseWod(input) {
   const blocks=[]; let block=null; const warnings=[];
   for(const line of lines){
     const type=line.match(kindPattern);
-    if(type){block={type:type[1].toUpperCase().replace(/\s+/g,' '),header:line,lines:[]};blocks.push(block);}
+    if(type){
+      if(blocks.length===1&&block?.type==='FOR TIME'&&!block.lines.length&&/^for\s+time\s*:?$/i.test(block.header)&&/^(E[23]MOM|EMOM)$/i.test(type[1])){blocks.pop();warnings.push('Intestazione For Time: applicato il protocollo EMOM indicato.');}
+      block={type:type[1].toUpperCase().replace(/\s+/g,' '),header:line,lines:[]};blocks.push(block);}
     else if(restPattern.test(line)&&!block?.type.startsWith('INTERVAL')&&!(block&&/^(E[23]MOM|EMOM)$/.test(block.type)&&!seconds(line))){blocks.push({type:'REST',header:line,lines:[]});block=null;}
     else if(block) block.lines.push(line);
     else if(!blocks.length) warnings.push(`Titolo o testo introduttivo: ${line}`);
@@ -49,8 +51,8 @@ export function parseWod(input) {
     if(!exercises.length) throw Error(`${b.type}: aggiungi gli esercizi su righe separate oppure dopo “ — ”.`);
     if(/^(E[23]MOM|EMOM)$/.test(b.type)){
       const slot=b.type==='EMOM'?60:b.type==='E2MOM'?120:180;
-      const numbered=exercises.some(s=>/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[:.)-]/i.test(s));
-      exercises=exercises.map(s=>s.replace(/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[:.)-]\s*/i,''));
+      const numbered=exercises.some(s=>/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[°º:.)-]/i.test(s));
+      exercises=exercises.map(s=>s.replace(/^(?:(?:min(?:uto|ute)?|station)\s*)?\d+\s*[°º:.)-]\s*/i,''));
       let count=total?total/slot:rounds?rounds*exercises.length:null;
       if(!count||!Number.isInteger(count))throw Error(`${b.type}: indica una durata multipla di ${slot} s oppure il numero di round.`);
       if(rounds&&total&&rounds*exercises.length!==count)throw Error(`${b.type}: durata, round e numero di stazioni non coincidono.`);
