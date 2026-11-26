@@ -22,3 +22,20 @@ test('do not discard real or ambiguous FOR TIME blocks',()=>{assert.throws(()=>p
 
 test('double rest range in EMOM is two stations',()=>{const p=parseWod("WOD\nFor Time\nEMOM 30’\n1° 50 DOUBLE UNDER\n2° 15 THRUSTER 2xDB\n3° 15 HSPU\n4° MAX REP MAN MAKER 2xDB\n5°-6° REST");assert.equal(p.intervals.length,30);assert.equal(p.blocks[0].rounds,5);assert.equal(p.intervals.filter(i=>i.rest).length,10);assert.equal(p.intervals[4].name,'REST');assert.equal(p.intervals[5].duration,60);});
 test('E2MOM rep progression and starting load',()=>{const p=parseWod("E2MOM 12’\nFRONT SQUAT\n6-6-4-4-2-2\nSTART 60%");assert.deepEqual(p.intervals.map(i=>parseInt(i.name)),[6,6,4,4,2,2]);assert.ok(p.intervals.every(i=>i.duration===120&&!i.rest));assert.equal(p.blocks[0].rounds,6);assert.match(p.intervals[0].name,/START 60%/);assert.equal(new Set(p.intervals.map(i=>i.color)).size,1);});
+
+test('photo with implicit FOR TIME preserves sequence and alternatives',()=>{
+ const movements=['30 V-UP','20 ALT SNATCH DB','15 PISTOL SQUAT / 20 LUNGES','10 ALT DEVIL PRESS','10 MUSCLE UP','10 ALT DEVIL PRESS','15 PISTOL SQUAT / 20 LUNGES','20 ALT SNATCH DB','30 V-UP'];
+ for(const heading of ['TIME CAP 14’','Time cap: 14 min','CAP 14:00']){
+  const p=parseWod([heading,...movements].join('\n'));
+  assert.equal(p.intervals.length,1);assert.equal(p.intervals[0].duration,840);
+  assert.equal(p.intervals[0].name,'FOR TIME · '+movements.join(' + '));
+  const out=generateSeconds(template,{name:'Time cap 14',intervals:p.intervals});
+  assert.equal(out.items[0].intervals[0].duration,840);
+ }
+});
+test('cap metadata does not override explicit protocol or invent missing duration',()=>{
+ assert.equal(parseWod('AMRAP\nTime cap 14 min\n10 squat').blocks[0].type,'AMRAP');
+ assert.equal(parseWod('FOR TIME\nTime cap 14 min\n10 squat').intervals.length,1);
+ assert.throws(()=>parseWod('TIME CAP\n30 V-UP'),/time cap/);
+ assert.throws(()=>parseWod('TIME CAP 14 min'),/esercizi/);
+});
