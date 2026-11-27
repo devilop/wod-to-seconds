@@ -1,4 +1,4 @@
-import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=8';
+import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=9';
 const $=id=>document.getElementById(id);let model={intervals:[],blocks:[],warnings:[]},template,installPrompt,ocrBusy=false;
 const examples={emom:'EMOM 12 min\n10 burpees\n12 kettlebell swing 24 kg\n14 air squat',mixed:'E2MOM 12 min\n8 front squat 40 kg + 10 box jump\n12 calorie row\n\nRecupero 90 s\n\nAMRAP 8 min\n5 pull-up\n10 push-up\n15 air squat\n\nFOR TIME — 3 round\nTime cap 6 min\n10 burpees\n20 sit-up',tabata:'TABATA 8 round 20/10\nAir squat\nPush-up'};
 function message(text,error=false){$('status').textContent=text;$('status').className=error?'error':'';}
@@ -43,7 +43,7 @@ render();
 
 for(const id of ['input-step','preview-step'])$(id).addEventListener('toggle',()=>{if($(id).open)$(id==='input-step'?'preview-step':'input-step').open=false;});
 
-function suggestName(text){const lines=text.trim().split(/\n/).map(x=>x.trim()).filter(Boolean);const title=lines.find(x=>!/(EMOM|AMRAP|TABATA|FOR TIME|E[23]MOM)/i.test(x));const heading=lines.find(x=>/(EMOM|AMRAP|E[23]MOM)/i.test(x));const minutes=heading?.match(/(\d+)\s*(?:min|['’′])/i);return ((title&&!/\d/.test(title)?title:heading?.split(/\d/)[0]?.trim()||'Allenamento')+(minutes?' '+minutes[1]+'′':'')).slice(0,120);}
+function suggestName(text){const lines=text.trim().split(/\n/).map(x=>x.trim()).filter(Boolean);const title=lines.find(x=>!/(EMOM|AMRAP|TABATA|FOR TIME|TIME CAP|EVERY|E[23]MOM)/i.test(x));const heading=lines.find(x=>/(EMOM|AMRAP|TIME CAP|EVERY|E[23]MOM)/i.test(x));const minutes=heading?.match(/(\d+)\s*(?:min|['’′])/i);return ((title&&!/\d/.test(title)?title:heading?.split(/\d/)[0]?.trim()||'Allenamento')+(minutes?' '+minutes[1]+'′':'')).slice(0,120);}
 const storageKey='wod-seconds-saved-v1';
 function saved(){try{return JSON.parse(localStorage.getItem(storageKey)||'[]');}catch{return [];}}
 function persist(items){localStorage.setItem(storageKey,JSON.stringify(items));drawSaved();}
