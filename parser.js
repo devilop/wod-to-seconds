@@ -58,14 +58,16 @@ export function parseWod(input) {
     let exercises=b.lines.filter(s=>!metadata.includes(s));
     const inline=b.header.match(/\s[-–—]\s(.+)$|:\s+(.+)$/);
     if(inline&&!/^\d+\s*(?:rounds?|giri|sets?)\s*$/i.test(inline[1]||inline[2]))exercises.unshift(inline[1]||inline[2]);
-    exercises=exercises.flatMap(s=>s.split(/\s*,\s*(?!\d)|\s+(?:e|and)\s+(?=\d)/i)).filter(Boolean);
+    exercises=exercises.flatMap(s=>s.split(/\s*,(?!\s*\d)\s*|\s+(?:e|and)\s+(?=\d)/i)).filter(Boolean);
     let rounds=roundsOf(info), total=seconds(info.split(/\s[-–—]\s|:\s+/)[0]);
     if(metadata.length)total=seconds(metadata.join(' '))||total;
     if(rounds!==null&&(rounds<1||rounds>2000))throw Error('Il numero di round deve essere tra 1 e 2.000.');
     if(!exercises.length) throw Error(`${b.type}: aggiungi gli esercizi su righe separate oppure dopo “ — ”.`);
     if(b.type==='EVERY'){
       const timing=b.header.match(/^EVERY\s+(.+?)\s+FOR\s+(.+)$/i);
-      const slot=timing&&seconds(timing[1]),duration=timing&&seconds(timing[2]);
+      const sets=b.header.match(/^EVERY\s+(.+?)\s*[x×]\s*(\d+)\s*(?:sets?|rounds?)\s*:?$/i);
+      const slot=seconds((sets||timing)?.[1]||'');
+      const duration=sets?slot*Number(sets[2]):timing&&seconds(timing[2]);
       if(!slot||!duration||!Number.isInteger(duration/slot)||duration/slot>2000)throw Error('EVERY: indica una durata totale multipla della finestra (es. EVERY 5 min FOR 15 min).');
       rounds=duration/slot;
       for(let r=1;r<=rounds;r++)add(exercises.join(' + '),slot,false,r,bi);
