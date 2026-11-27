@@ -1,4 +1,4 @@
-import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=14';
+import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=15';
 const $=id=>document.getElementById(id);let model={intervals:[],blocks:[],warnings:[]},template,installPrompt,ocrBusy=false;
 const examples={emom:'EMOM 12 min\n10 burpees\n12 kettlebell swing 24 kg\n14 air squat',mixed:'E2MOM 12 min\n8 front squat 40 kg + 10 box jump\n12 calorie row\n\nRecupero 90 s\n\nAMRAP 8 min\n5 pull-up\n10 push-up\n15 air squat\n\nFOR TIME — 3 round\nTime cap 6 min\n10 burpees\n20 sit-up',tabata:'TABATA 8 round 20/10\nAir squat\nPush-up'};
 function message(text,error=false){$('status').textContent=text;$('status').className=error?'error':'';}
@@ -50,8 +50,39 @@ function startDrag(event,row,from){
   };
   handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);handle.addEventListener('lostpointercapture',finish);update();
 }
-$('analyze').addEventListener('click',()=>{try{let text=$('wod').value;if(!$('cap-request').hidden&&$('cap-minutes').value){const cap=Number($('cap-minutes').value);if(!Number.isInteger(cap)||cap<1||cap>1440)throw Error('Inserisci un time cap tra 1 e 1440 minuti.');text+='\nTime cap '+cap+' min';}const next=parseWod(text);$('cap-request').hidden=true;$('cap-minutes').value='';$('wod').value=text;model=next;if($('name').value==='Il mio WOD')$('name').value=suggestName($('wod').value);render();$('input-step').open=false;$('preview-step').open=true;$('preview-step').scrollIntoView({behavior:'smooth',block:'start'});message('Controlla la sequenza prima di esportare.');}catch(e){model={intervals:[],blocks:[],warnings:[]};render();message(e.message,true);}});
-document.querySelectorAll('[data-example]').forEach(button=>button.addEventListener('click',()=>{$('wod').value=examples[button.dataset.example];$('analyze').click();}));
+const capRequest=$('cap-request');
+const capMinutes=$('cap-minutes');
+function resetCap(){capRequest.hidden=true;capMinutes.value='';}
+$('wod').addEventListener('input',resetCap);
+$('analyze').addEventListener('click',()=>{
+  try{
+    let text=$('wod').value;
+    if(!capRequest.hidden&&capMinutes.value){
+      const cap=Number(capMinutes.value);
+      if(!Number.isInteger(cap)||cap<1||cap>1440){capMinutes.reportValidity();return;}
+      text+='\nTime cap '+cap+' min';
+    }
+    const next=parseWod(text);
+    resetCap();
+    $('wod').value=text;
+    model=next;
+    if($('name').value==='Il mio WOD')$('name').value=suggestName(text);
+    render();
+    $('input-step').open=false;
+    $('preview-step').open=true;
+    $('preview-step').scrollIntoView({behavior:'smooth',block:'start'});
+    message('Controlla la sequenza prima di esportare.');
+  }catch(error){
+    model={intervals:[],blocks:[],warnings:[]};
+    render();
+    if(error.code==='MISSING_TIME_CAP'&&error.lastBlock){
+      capRequest.hidden=false;
+      capMinutes.focus();
+    }
+    message(error.message,true);
+  }
+});
+document.querySelectorAll('[data-example]').forEach(button=>button.addEventListener('click',()=>{resetCap();$('wod').value=examples[button.dataset.example];$('analyze').click();}));
 $('add').addEventListener('click',()=>{if(model.intervals.length>=2000)return message('Massimo 2.000 intervalli.',true);model.intervals.push({name:'Nuovo esercizio',duration:60,rest:false,color:0,exercise_key:'nuovo esercizio',round:1,block:1});model.blocks=[];render();});
 $('download').addEventListener('click',async()=>{try{template ||= await fetch('./template.seconds').then(r=>{if(!r.ok)throw Error('Template non disponibile. Ricarica con una connessione attiva.');return r.json();});const result=generateSeconds(template,{name:$('name').value,notes:$('wod').value,intervals:model.intervals});const url=URL.createObjectURL(new Blob([JSON.stringify(result)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=($('name').value.replace(/[^\p{L}\p{N}_-]+/gu,'-').slice(0,80)||'workout')+'.seconds';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);message('File pronto. Aprilo in Seconds Pro.');}catch(e){message(e.message,true);}});
 async function loadOcr(){if(window.Tesseract)return;await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';script.onload=resolve;script.onerror=()=>{script.remove();reject(Error('Impossibile caricare OCR. Verifica la connessione e riprova.'));};document.head.append(script);});}
@@ -59,12 +90,12 @@ async function recognize(event){
   const file=event.target.files[0];if(!file)return;if(ocrBusy){event.target.value='';return;}
   if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>15*1024*1024){$('ocr-status').textContent='Usa JPG, PNG o WebP, massimo 15 MB. Converti prima i file HEIC.';event.target.value='';return;}
   ocrBusy=true;$('photo').disabled=$('camera').disabled=true;let worker;
-  try{$('ocr-status').textContent='Caricamento OCR locale…';await loadOcr();worker=await Tesseract.createWorker('ita+eng',1,{logger:m=>{$('ocr-status').textContent=`OCR: ${Math.round((m.progress||0)*100)}% · ${m.status}`;}});const {data}=await worker.recognize(file);$('wod').value=data.text.trim();$('name').value=suggestName(data.text);$('ocr-status').textContent=data.text.trim()?`Testo aggiunto (confidenza OCR ${Math.round(data.confidence)}%). Correggilo prima di analizzare.`:'Nessun testo trovato. Prova una foto più nitida.';}
+  try{$('ocr-status').textContent='Caricamento OCR locale…';await loadOcr();worker=await Tesseract.createWorker('ita+eng',1,{logger:m=>{$('ocr-status').textContent=`OCR: ${Math.round((m.progress||0)*100)}% · ${m.status}`;}});const {data}=await worker.recognize(file);resetCap();$('wod').value=data.text.trim();$('name').value=suggestName(data.text);$('ocr-status').textContent=data.text.trim()?`Testo aggiunto (confidenza OCR ${Math.round(data.confidence)}%). Correggilo prima di analizzare.`:'Nessun testo trovato. Prova una foto più nitida.';}
   catch(e){$('ocr-status').textContent='OCR non riuscito. Verifica connessione e immagine, oppure inserisci il testo manualmente.';}
   finally{if(worker)await worker.terminate();event.target.value='';ocrBusy=false;$('photo').disabled=$('camera').disabled=false;}
 }
 $('photo').addEventListener('change',recognize);$('camera').addEventListener('change',recognize);
-$('clear').addEventListener('click',()=>{if(ocrBusy)return message('Attendi la fine dell’OCR prima di cancellare la sessione.',true);$('wod').value='';$('name').value='Il mio WOD';model={intervals:[],blocks:[],warnings:[]};render();$('input-step').open=true;$('preview-step').open=false;message('Sessione cancellata.');$('ocr-status').textContent='La foto viene elaborata solo sul tuo dispositivo.';});
+$('clear').addEventListener('click',()=>{if(ocrBusy)return message('Attendi la fine dell’OCR prima di cancellare la sessione.',true);resetCap();$('wod').value='';$('name').value='Il mio WOD';model={intervals:[],blocks:[],warnings:[]};render();$('input-step').open=true;$('preview-step').open=false;message('Sessione cancellata.');$('ocr-status').textContent='La foto viene elaborata solo sul tuo dispositivo.';});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('install').hidden=false;});$('install').addEventListener('click',async()=>{await installPrompt.prompt();installPrompt=null;$('install').hidden=true;});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 render();
@@ -76,7 +107,7 @@ const storageKey='wod-seconds-saved-v1';
 function saved(){try{return JSON.parse(localStorage.getItem(storageKey)||'[]');}catch{return [];}}
 function persist(items){localStorage.setItem(storageKey,JSON.stringify(items));drawSaved();}
 function snapshot(){generateSeconds(template||{items:[{intervals:[{}]}]},{name:$('name').value,intervals:model.intervals});return {id:crypto.randomUUID(),name:$('name').value,text:$('wod').value,model:structuredClone(model)};}
-function loadWorkout(w){if(!w||typeof w.name!=='string'||typeof w.text!=='string'||!Array.isArray(w.model?.intervals)||w.model.intervals.length>2000)throw Error('Allenamento non valido.');generateSeconds({items:[{intervals:[{}]}]},{name:w.name,intervals:w.model.intervals});model=structuredClone(w.model);model.blocks=Array.isArray(model.blocks)?model.blocks:[];model.warnings=Array.isArray(model.warnings)?model.warnings:[];$('name').value=w.name;$('wod').value=w.text;render();$('input-step').open=false;$('preview-step').open=true;}
+function loadWorkout(w){if(!w||typeof w.name!=='string'||typeof w.text!=='string'||!Array.isArray(w.model?.intervals)||w.model.intervals.length>2000)throw Error('Allenamento non valido.');generateSeconds({items:[{intervals:[{}]}]},{name:w.name,intervals:w.model.intervals});model=structuredClone(w.model);model.blocks=Array.isArray(model.blocks)?model.blocks:[];model.warnings=Array.isArray(model.warnings)?model.warnings:[];$('name').value=w.name;resetCap();$('wod').value=w.text;render();$('input-step').open=false;$('preview-step').open=true;}
 function drawSaved(){const root=$('saved-list');root.replaceChildren();for(const w of saved()){const row=document.createElement('div');row.className='saved-row';const title=document.createElement('strong');title.textContent=w.name;row.append(title);const actions=document.createElement('div');actions.className='saved-actions';row.append(actions);for(const [label,action] of [['Apri',()=>loadWorkout(w)],['QR',()=>share(w)],['Elimina',()=>{if(confirm('Eliminare questo allenamento salvato?'))persist(saved().filter(x=>x.id!==w.id));}]]){const b=document.createElement('button');b.className='secondary';b.setAttribute('aria-label',label);b.title=label;const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('width','22');icon.setAttribute('height','22');icon.setAttribute('fill','none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','1.8');icon.setAttribute('aria-hidden','true');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',label==='Apri'?'M4 4h10v4H8v12H4z M12 12h9m-4-4 4 4-4 4':label==='QR'?'M3 3h6v6H3z M15 3h6v6h-6z M3 15h6v6H3z M14 13h3v4h4v4h-7v-4m7-4v2': 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7');icon.append(path);b.append(icon);b.onclick=()=>Promise.resolve().then(action).catch(e=>alert(e.message));actions.append(b);}root.append(row);}if(!root.children.length)root.textContent='Nessun allenamento salvato.';}
 let savedNoticeTimer;
 $('save-workout').onclick=()=>{const notice=$('save-notice');clearTimeout(savedNoticeTimer);try{const w=snapshot();persist([...saved(),w]);notice.className='save-notice';notice.textContent='✓ Allenamento salvato sul dispositivo';message('Salvato sul dispositivo.');savedNoticeTimer=setTimeout(()=>{notice.textContent='';},6000);}catch(e){notice.className='save-notice error';notice.textContent='Salvataggio non riuscito: '+e.message;message(notice.textContent,true);}};

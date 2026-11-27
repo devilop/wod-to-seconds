@@ -100,7 +100,15 @@ export function parseWod(input) {
       if(!Number.isInteger(rounds))warnings.push(`${b.type}: ultimo giro incompleto (${count} finestre, ${exercises.length} stazioni).`);
       warnings.push(`${b.type}: ${numbered?'stazioni numerate':'ogni riga è una stazione'}; usa “+” per più esercizi nella stessa finestra. Il recupero residuo resta nella finestra.`);
     }else if(b.type==='AMRAP'||b.type==='FOR TIME'){
-      if(!total)throw Error(`${b.type}: ${b.type==='FOR TIME'?'serve un time cap':'specifica la durata'} (es. 12 min).`);
+      if(!total){
+        const error=Error(`${b.type}: ${b.type==='FOR TIME'?'serve un time cap':'specifica la durata'} (es. 12 min).`);
+        if(b.type==='FOR TIME'){
+          error.code='MISSING_TIME_CAP';
+          error.lastBlock=bi===blocks.length-1;
+          if(!error.lastBlock)error.message='FOR TIME: inserisci il time cap nel blocco, prima del prossimo protocollo.';
+        }
+        throw error;
+      }
       const scheme=b.header.match(/\d+(?:[-–—]\d+)+/);
       add(`${b.type}${scheme?' · '+scheme[0]+' reps':''}${rounds?' · '+rounds+' round':''} · ${exercises.join(' + ')}`,total,false,1,bi);
       if(b.type==='AMRAP')rounds=null;
