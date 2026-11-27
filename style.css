@@ -11,3 +11,5 @@
 .saved-actions button{display:flex;align-items:center;justify-content:center;min-width:44px}.saved-actions svg{pointer-events:none}
 
 .save-notice{margin:10px 0 0;padding:12px;border:1px solid var(--accent);border-radius:9px;background:#263824;color:var(--accent);font-size:14px;line-height:1.4}.save-notice:empty{display:none}.save-notice.error{color:#f4dba3;border-color:#f4dba3;background:#3b3020}
+
+.saved-actions button[aria-label="Elimina"] svg{color:#d99595}
