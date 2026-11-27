@@ -1,4 +1,4 @@
-import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=9';
+import {parseWod,generateSeconds,exerciseKey,palette,swatches} from './parser.js?v=10';
 const $=id=>document.getElementById(id);let model={intervals:[],blocks:[],warnings:[]},template,installPrompt,ocrBusy=false;
 const examples={emom:'EMOM 12 min\n10 burpees\n12 kettlebell swing 24 kg\n14 air squat',mixed:'E2MOM 12 min\n8 front squat 40 kg + 10 box jump\n12 calorie row\n\nRecupero 90 s\n\nAMRAP 8 min\n5 pull-up\n10 push-up\n15 air squat\n\nFOR TIME — 3 round\nTime cap 6 min\n10 burpees\n20 sit-up',tabata:'TABATA 8 round 20/10\nAir squat\nPush-up'};
 function message(text,error=false){$('status').textContent=text;$('status').className=error?'error':'';}
@@ -9,18 +9,46 @@ function render(){
   model.warnings.forEach(w=>{const p=document.createElement('p');p.className='warning';p.textContent=w;$('warnings').append(p);});
   model.intervals.forEach((item,index)=>{
     const row=document.createElement('div');row.className='interval';row.style.setProperty('--color',item.rest?'#9ba29b':swatches[palette.indexOf(item.color)]);
-    const stripe=document.createElement('div');stripe.className='stripe';row.append(stripe);
+    const stripe=document.createElement('div');stripe.className='stripe';row.append(stripe);row.dataset.index=index;
+    const handle=document.createElement('button');handle.type='button';handle.className='drag-handle';handle.textContent='⠿';handle.setAttribute('aria-label',`Sposta esercizio ${index+1}`);handle.title='Trascina per spostare. Con tastiera: frecce su e giù.';handle.addEventListener('pointerdown',e=>startDrag(e,row,index));handle.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();moveInterval(index,index+(e.key==='ArrowUp'?-1:1));}});row.append(handle);
     const title=document.createElement('div'),name=document.createElement('input');name.value=item.name;name.setAttribute('aria-label',`Esercizio ${index+1}`);
     name.addEventListener('change',()=>{item.name=name.value;item.exercise_key=item.rest?'rest':exerciseKey(item.name);const same=model.intervals.find(i=>i!==item&&!i.rest&&i.exercise_key===item.exercise_key);if(same)item.color=same.color;render();});
-    const meta=document.createElement('div');meta.className='meta';meta.textContent=`${item.round?'Giro '+item.round:''}${item.rest?' · Recupero':''}`;title.append(name,meta);row.append(title);
+    const meta=document.createElement('div');meta.className='meta';meta.textContent=`${item.round?'Giro '+item.round:''}${item.rest?' · Recupero':''}`;title.className='interval-title';title.append(name,meta);row.append(title);
     const label=document.createElement('label');label.textContent='Secondi';const duration=document.createElement('input');duration.type='number';duration.min='1';duration.max='86400';duration.step='1';duration.value=item.duration;duration.setAttribute('aria-label',`Durata ${index+1} in secondi`);duration.addEventListener('input',()=>{item.duration=Number(duration.value);summary();});label.append(duration);row.append(label);
     const picker=document.createElement('details');picker.className='color-picker';
     const toggle=document.createElement('summary');toggle.setAttribute('aria-label',`Colore esercizio ${index+1}`);toggle.title=item.rest?'Recupero':'Cambia colore';picker.append(toggle);
     if(item.rest){toggle.setAttribute('aria-disabled','true');picker.addEventListener('click',e=>e.preventDefault());}
     else {const choices=document.createElement('div');choices.className='color-options';const names=['Lime','Azzurro','Arancio','Rosa','Viola','Turchese','Giallo'];palette.forEach((code,n)=>{const choice=document.createElement('button');choice.type='button';choice.style.setProperty('--swatch',swatches[n]);choice.setAttribute('aria-label',names[n]);choice.title=names[n];choice.setAttribute('aria-pressed',String(code===item.color));choice.addEventListener('click',()=>{model.intervals.filter(i=>!i.rest&&i.exercise_key===item.exercise_key).forEach(i=>i.color=code);render();root.querySelectorAll('.color-picker summary')[index]?.focus();});choices.append(choice);});picker.append(choices);}
     row.append(picker);
-    const del=document.createElement('button');del.textContent='×';del.setAttribute('aria-label',`Elimina intervallo ${index+1}`);del.addEventListener('click',()=>{model.intervals.splice(index,1);model.blocks=[];render();});row.append(del);root.append(row);
+    const del=document.createElement('button');del.className='delete-interval';del.textContent='×';del.setAttribute('aria-label',`Elimina intervallo ${index+1}`);del.addEventListener('click',()=>{model.intervals.splice(index,1);model.blocks=[];render();});row.append(del);root.append(row);
   });summary();
+}
+function moveInterval(from,to){
+  if(to<0||to>=model.intervals.length||from===to)return;
+  const [item]=model.intervals.splice(from,1);model.intervals.splice(to,0,item);
+  model.blocks=[];render();$('intervals').querySelectorAll('.drag-handle')[to]?.focus({preventScroll:true});
+  message(`Intervallo spostato alla posizione ${to+1}.`);
+}
+function startDrag(event,row,from){
+  if(event.button!==0)return;
+  const handle=event.currentTarget,root=$('intervals');let y=event.clientY,target=from,frame;
+  handle.setPointerCapture(event.pointerId);row.classList.add('dragging');
+  const update=()=>{
+    const box=root.getBoundingClientRect();
+    if(y<box.top+48)root.scrollTop-=10;else if(y>box.bottom-48)root.scrollTop+=10;
+    const rows=[...root.querySelectorAll('.interval')];
+    target=rows.reduce((best,r,i)=>Math.abs(y-(r.getBoundingClientRect().top+r.offsetHeight/2))<best.distance?{index:i,distance:Math.abs(y-(r.getBoundingClientRect().top+r.offsetHeight/2))}:best,{index:from,distance:Infinity}).index;
+    rows.forEach((r,i)=>{r.classList.toggle('drop-before',i===target&&target<from);r.classList.toggle('drop-after',i===target&&target>from);});
+    frame=requestAnimationFrame(update);
+  };
+  const move=e=>{y=e.clientY;};
+  const finish=e=>{
+    cancelAnimationFrame(frame);handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',finish);handle.removeEventListener('pointercancel',finish);handle.removeEventListener('lostpointercapture',finish);
+    root.querySelectorAll('.interval').forEach(r=>r.classList.remove('dragging','drop-before','drop-after'));
+    if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);
+    if(e.type==='pointerup')moveInterval(from,target);
+  };
+  handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);handle.addEventListener('lostpointercapture',finish);update();
 }
 $('analyze').addEventListener('click',()=>{try{const next=parseWod($('wod').value);model=next;if($('name').value==='Il mio WOD')$('name').value=suggestName($('wod').value);render();$('input-step').open=false;$('preview-step').open=true;$('preview-step').scrollIntoView({behavior:'smooth',block:'start'});message('Controlla la sequenza prima di esportare.');}catch(e){model={intervals:[],blocks:[],warnings:[]};render();message(e.message,true);}});
 document.querySelectorAll('[data-example]').forEach(button=>button.addEventListener('click',()=>{$('wod').value=examples[button.dataset.example];$('analyze').click();}));
@@ -49,7 +77,7 @@ function saved(){try{return JSON.parse(localStorage.getItem(storageKey)||'[]');}
 function persist(items){localStorage.setItem(storageKey,JSON.stringify(items));drawSaved();}
 function snapshot(){generateSeconds(template||{items:[{intervals:[{}]}]},{name:$('name').value,intervals:model.intervals});return {id:crypto.randomUUID(),name:$('name').value,text:$('wod').value,model:structuredClone(model)};}
 function loadWorkout(w){if(!w||typeof w.name!=='string'||typeof w.text!=='string'||!Array.isArray(w.model?.intervals)||w.model.intervals.length>2000)throw Error('Allenamento non valido.');generateSeconds({items:[{intervals:[{}]}]},{name:w.name,intervals:w.model.intervals});model=structuredClone(w.model);model.blocks=Array.isArray(model.blocks)?model.blocks:[];model.warnings=Array.isArray(model.warnings)?model.warnings:[];$('name').value=w.name;$('wod').value=w.text;render();$('input-step').open=false;$('preview-step').open=true;}
-function drawSaved(){const root=$('saved-list');root.replaceChildren();for(const w of saved()){const row=document.createElement('div');row.className='saved-row';const title=document.createElement('strong');title.textContent=w.name;row.append(title);for(const [label,action] of [['Apri',()=>loadWorkout(w)],['QR',()=>share(w)],['Elimina',()=>{if(confirm('Eliminare questo allenamento salvato?'))persist(saved().filter(x=>x.id!==w.id));}]]){const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=()=>Promise.resolve().then(action).catch(e=>alert(e.message));row.append(b);}root.append(row);}if(!root.children.length)root.textContent='Nessun allenamento salvato.';}
+function drawSaved(){const root=$('saved-list');root.replaceChildren();for(const w of saved()){const row=document.createElement('div');row.className='saved-row';const title=document.createElement('strong');title.textContent=w.name;row.append(title);const actions=document.createElement('div');actions.className='saved-actions';row.append(actions);for(const [label,action] of [['Apri',()=>loadWorkout(w)],['QR',()=>share(w)],['Elimina',()=>{if(confirm('Eliminare questo allenamento salvato?'))persist(saved().filter(x=>x.id!==w.id));}]]){const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=()=>Promise.resolve().then(action).catch(e=>alert(e.message));actions.append(b);}root.append(row);}if(!root.children.length)root.textContent='Nessun allenamento salvato.';}
 $('save-workout').onclick=()=>{try{const w=snapshot();persist([...saved(),w]);message('Salvato sul dispositivo.');}catch(e){message('Salvataggio non riuscito: '+e.message,true);}};
 async function encodeWorkout(w){const bytes=new TextEncoder().encode(JSON.stringify(w));const packed=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());return btoa(String.fromCharCode(...packed)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');}
 async function share(w){try{if(!window.qrcode)await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';s.onload=resolve;s.onerror=()=>reject(Error('Connessione necessaria per generare il QR.'));document.head.append(s);});const url=location.origin+location.pathname+'#wod='+await encodeWorkout(w);const qr=qrcode(0,'L');qr.addData(url);qr.make();$('qr-image').innerHTML=qr.createSvgTag({cellSize:5,margin:20,scalable:true});$('qr-link').href=url;$('qr-dialog').showModal();}catch(e){alert('QR non disponibile: allenamento troppo grande oppure connessione assente. '+e.message);}}
